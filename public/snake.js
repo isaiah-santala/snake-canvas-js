@@ -1,11 +1,10 @@
 const map = document.getElementById('snake')
 const ctx = map.getContext('2d')
-const scale = 12
+const scale = 15
 ctx.scale(scale, scale)
 
 const score = document.getElementById('score')
 const incrementScore = () => score.innerHTML = Number(score.innerText) + 1 
-
 
 const highScore = document.getElementById('highscore')
 const snakeHighScore = window.localStorage.getItem('snakeHighScore')
@@ -13,13 +12,14 @@ highScore.innerHTML = snakeHighScore || 0
 
 gameOver = () => {
   const score = document.getElementById('score').innerText
-  if (score > snakeHighScore || !snakeHighScore) {
+  if (Number(score) > Number(snakeHighScore) || !snakeHighScore) {
     window.localStorage.setItem('snakeHighScore', score)
   }
   window.location.reload(true)
 }
 
 let dir = null
+let movement = null
 
 const bindings = {
   w: 'UP',
@@ -42,7 +42,9 @@ const directions = (dir) => {
   }
 }
 
-const canMove = (newDir) => {
+const keyIsValid = (newDir) => {
+  if (!newDir) return false
+  if (snake.length === 1) return true
   if (newDir === 'UP' && dir === 'DOWN') return false
   if (newDir === 'DOWN' && dir === 'UP') return false
   if (newDir === 'LEFT' && dir === 'RIGHT') return false
@@ -71,7 +73,7 @@ const paintFood = () => {
   ctx.fillRect(x, y, 1, 1)
 }
 
-const snake = [
+let snake = [
   [ 
     map.width / 2 / scale, 
     map.height / 2 / scale
@@ -79,18 +81,26 @@ const snake = [
 ]
 
 const moveSnake = () => {
-  const movement = directions(dir)
-  snake.unshift(
-    [
-      snake[0][0] + movement[0],
-      snake[0][1] + movement[1]
-    ]
-  )
+  snake.unshift(genHead())
   if (didSnakeEat()) {
     genFood()
     incrementScore()
   }
   else snake.pop()
+  didSnakeDie()
+}
+
+const genHead = () => {
+  let newHead = [
+    snake[0][0] + movement[0],
+    snake[0][1] + movement[1]
+  ]
+  let [x, y] = newHead
+  if (x < 0) x = map.width / scale + x
+  if (y < 0) y = map.height / scale + y
+  if (x >= map.width / scale) x = 0
+  if (y >= map.height / scale) y = 0
+  return[x, y]
 }
 
 const paintSnake = () => {
@@ -100,15 +110,18 @@ const paintSnake = () => {
   )
 }
 
+const didSnakeExceedBorders = () => {
+  snake = snake.map(([x, y]) => {
+    if (x < 0) x = map.width / scale + x
+    if (y < 0) y = map.height / scale + y
+    if (x >= map.width / scale) x = 0
+    if (y >= map.height / scale) y = 0
+    return [x, y]
+  })
+}
+
 const didSnakeDie = () => {
   const [[x, y], ...tail] = snake
-  if (
-    x < 0 ||
-    x >= map.width / scale
-    || y < 0
-    || y >= map.height / scale
-  ) gameOver()
-
   tail.forEach(([tx, ty]) => {
     if (x === tx && y === ty) gameOver()
   })
@@ -127,23 +140,31 @@ const paintMap = () => {
   paintFood()
 }
 
+let playerHasNotMovedThisTick = true
+
 const gameLoop = () => {
   if (dir) {
     moveSnake()
-    didSnakeDie()
   }
   clearMap()
   paintMap()
+  playerHasNotMovedThisTick = false
+}
+
+const autoTick = () => {
+  if (playerHasNotMovedThisTick) gameLoop()
+  playerHasNotMovedThisTick = true
 }
 
 const handleKeyDown = ({ key }) => {
   const newDir = bindings[key]
-  if (canMove(newDir)) {
+  if (keyIsValid(newDir)) {
     dir = newDir
+    movement = directions(dir)
     gameLoop()
   } 
 }
 
-const step = setInterval(gameLoop, 200)
+const step = setInterval(autoTick, 150)
 
 document.addEventListener('keydown', handleKeyDown, false)
